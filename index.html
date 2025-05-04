@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Checkmark Lease Maker</title>
+  <title>Checkmark Beat Leasing</title>
   <style>
     body { font-family: Arial, sans-serif; background: #fff; color: #000; margin: 0; padding: 20px; }
     .container { max-width: 480px; margin: 20px auto; border: 1px solid #000; padding: 20px; border-radius: 8px; }
@@ -28,9 +28,9 @@
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
     import { getAnalytics } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js';
-    import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, updateDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+    import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
 
-    // Firebase config (replace with yours)
+    // Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyCarCLcVjERgmn0hOAoh3iN3poOIo9Zxsg",
       authDomain: "beat-leasing.firebaseapp.com",
@@ -43,169 +43,201 @@
 
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
+    getAnalytics(app);
     const db = getFirestore(app);
 
-    // Firestore helpers
-    async function loadConfig() {
-      const ref = doc(db, 'leasing', 'config'); const snap = await getDoc(ref);
-      if (snap.exists()) return snap.data();
-      await setDoc(ref, leaseMakerConfig);
-      return leaseMakerConfig;
-    }
-    async function saveConfig(cfg) { await setDoc(doc(db,'leasing','config'), cfg); }
-    async function loadOrders() { const snap = await getDocs(collection(db,'leasing','orders','items')); return snap.docs.map(d=>({ id:d.id, ...d.data() })); }
-    async function addOrder(order) { await addDoc(collection(db,'leasing','orders','items'), order); }
-    async function updateOrder(id,data) { await updateDoc(doc(db,'leasing','orders','items',id), data); }
-
-    // Original defaults and secret
+    // Default configuration and secret code
     const leaseMakerConfig = {
-      banner: '', producerName: '', adminPassword: 'Checkmark Audio',
+      banner: '',
+      producerName: '',
+      adminPassword: 'Checkmark Audio',
       tiers: [
-        {id:'mp3',name:'MP3 Lease',usage:'Up to 10,000 streams, 1 video, credit & non-exclusive',price:'$30'},
-        {id:'wav',name:'WAV Lease',usage:'Up to 50,000 streams, 2 videos, stems unavailable',price:'$60'},
-        {id:'unlimited',name:'Unlimited Lease',usage:'Unlimited streams & sales, non-exclusive',price:'$150'},
-        {id:'exclusive',name:'Exclusive Rights',usage:'Sole license, unlimited use',price:'$800'}
+        { id: 'mp3', name: 'MP3 Lease', usage: 'Up to 10,000 streams, 1 video, credit & non-exclusive', price: '$30' },
+        { id: 'wav', name: 'WAV Lease', usage: 'Up to 50,000 streams, 2 videos, stems unavailable', price: '$60' },
+        { id: 'unlimited', name: 'Unlimited Lease', usage: 'Unlimited streams & sales, non-exclusive', price: '$150' },
+        { id: 'exclusive', name: 'Exclusive Rights', usage: 'Sole license, unlimited use', price: '$800' }
       ],
       agreements: {
-        mp3:`MP3 Lease Agreement\n\n1. Grant of License: Non-exclusive, personal use license...`,
-        wav:`WAV Lease Agreement\n\n1. Grant of License: Non-exclusive license...`,
-        unlimited:`Unlimited Lease Agreement\n\n1. Grant of License: Non-exclusive, unlimited...`,
-        exclusive:`Exclusive Rights Agreement\n\n1. Grant of License: Exclusive, worldwide...`
+        mp3: String.raw`MP3 Lease Agreement
+
+1. Grant of License: Non-exclusive, personal use license...
+2. Up to 10,000 streams, one video.
+3. Non-exclusive rights.`,
+        wav: String.raw`WAV Lease Agreement
+
+1. Grant of License: Non-exclusive, high-quality audio...
+2. Up to 50,000 streams, two videos.
+3. Stems not included.`,
+        unlimited: String.raw`Unlimited Lease Agreement
+
+1. Grant of License: Non-exclusive, unlimited use...
+2. Includes stems.
+3. Producer retains publishing rights.`,
+        exclusive: String.raw`Exclusive Rights Agreement
+
+1. Grant of License: Exclusive, worldwide rights...
+2. All media uses.
+3. No further licenses.`
       }
     };
     const secretEnc = 'MTMyNDM1NDY1NzY4Nzk=';
 
-    // DOM elements
-    const setupDiv=document.getElementById('setup'), widgetDiv=document.getElementById('widget');
-    let cfg, orders=[];
+    // Firestore helpers
+    async function loadConfig() {
+      const ref = doc(db, 'leasing', 'config');
+      const snap = await getDoc(ref);
+      if (snap.exists()) return snap.data();
+      await setDoc(ref, leaseMakerConfig);
+      return leaseMakerConfig;
+    }
+    async function saveConfig(cfg) { await setDoc(doc(db, 'leasing', 'config'), cfg); }
+    async function loadOrders() {
+      const snap = await getDocs(collection(db, 'leasing', 'orders', 'items'));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    async function addOrder(order) { await addDoc(collection(db, 'leasing', 'orders', 'items'), order); }
+    async function updateOrder(id, data) { await updateDoc(doc(db, 'leasing', 'orders', 'items', id), data); }
+    async function resetAll() {
+      await deleteDoc(doc(db, 'leasing', 'config'));
+      const snaps = await getDocs(collection(db, 'leasing', 'orders', 'items'));
+      await Promise.all(snaps.docs.map(d => deleteDoc(d.ref)));
+    }
 
-    document.addEventListener('DOMContentLoaded',async()=>{
+    // DOM references
+    const setupDiv = document.getElementById('setup');
+    const widgetDiv = document.getElementById('widget');
+    let cfg;
+
+    document.addEventListener('DOMContentLoaded', async () => {
       cfg = await loadConfig();
-      orders = await loadOrders();
-      if(!cfg.producerName) {
-        setupDiv.style.display='block'; widgetDiv.style.display='none';
-        document.getElementById('saveSetup').onclick=async()=>{
-          cfg.banner=document.getElementById('bannerURL').value;
-          cfg.producerName=document.getElementById('producerName').value||leaseMakerConfig.producerName;
+      if (!cfg.producerName) {
+        setupDiv.style.display = 'block';
+        widgetDiv.style.display = 'none';
+        document.getElementById('saveSetup').onclick = async () => {
+          cfg.banner = document.getElementById('bannerURL').value;
+          cfg.producerName = document.getElementById('producerName').value || leaseMakerConfig.producerName;
           await saveConfig(cfg);
           location.reload();
         };
       } else {
-        setupDiv.style.display='none'; widgetDiv.style.display='block'; initWidget();
+        setupDiv.style.display = 'none';
+        widgetDiv.style.display = 'block';
+        initWidget();
       }
     });
 
     async function renderNotification() {
-      const pending=(await loadOrders()).filter(o=>!o.completed).length;
-      const n=document.getElementById('notification');
-      n.textContent=pending?`You have ${pending} pending orders`:'';
-      n.style.display=pending?'block':'none';
+      const pending = (await loadOrders()).filter(o => !o.completed).length;
+      const n = document.getElementById('notification');
+      n.textContent = pending ? `You have ${pending} pending orders` : '';
+      n.style.display = pending ? 'block' : 'none';
     }
 
     async function renderOrders() {
-      const p=document.getElementById('pendingOrders'), c=document.getElementById('completedOrders');
-      p.innerHTML=''; c.innerHTML='';
-      (await loadOrders()).forEach(o=>{
-        const li=document.createElement('li');
-        li.textContent=`${new Date(o.date).toLocaleString()} | ${o.beat} | ${o.tier} | ${o.email}`;
-        if(!o.completed){
-          const btn=document.createElement('button'); btn.textContent='Mark Complete'; btn.className='mark-btn';
-          btn.onclick=async()=>{ await updateOrder(o.id,{completed:true}); renderOrders(); renderNotification();};
-          li.appendChild(btn); p.appendChild(li);
-        } else c.appendChild(li);
+      const pList = document.getElementById('pendingOrders');
+      const cList = document.getElementById('completedOrders');
+      pList.innerHTML = ''; cList.innerHTML = '';
+      (await loadOrders()).forEach(o => {
+        const li = document.createElement('li');
+        li.textContent = `${new Date(o.date).toLocaleString()} | ${o.beat} | ${o.tier} | ${o.email}`;
+        if (!o.completed) {
+          const btn = document.createElement('button'); btn.textContent = 'Mark Complete'; btn.className = 'mark-btn';
+          btn.onclick = async () => { await updateOrder(o.id, { completed: true }); renderOrders(); renderNotification(); };
+          li.appendChild(btn); pList.appendChild(li);
+        } else {
+          cList.appendChild(li);
+        }
       });
     }
 
     function generatePDF(id) {
-      const {jsPDF}=window.jspdf; const doc=new jsPDF(); let y=20;
-      const tier=cfg.tiers.find(t=>t.id===id);
-      doc.setFontSize(16); doc.text(`${tier.name} Agreement`,20,y); y+=10;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF(); let y = 20;
+      const tier = cfg.tiers.find(t => t.id === id);
+      doc.setFontSize(16); doc.text(`${tier.name} Agreement`, 20, y); y += 10;
       doc.setFontSize(11);
-      const lines=doc.splitTextToSize(cfg.agreements[id].replace(/{{producer}}/g,cfg.producerName),170);
-      lines.forEach(line=>{ if(y>280){doc.addPage();y=20;} doc.text(line,20,y); y+=7; });
+      const lines = doc.splitTextToSize(cfg.agreements[id].replace(/{{producer}}/g, cfg.producerName), 170);
+      lines.forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 20, y); y += 7; });
       doc.save(`${id}-agreement.pdf`);
     }
 
     function populateTiers() {
-      const c=document.getElementById('tiersContainer'); c.innerHTML='';
-      cfg.tiers.forEach(t=>{
-        const d=document.createElement('div'); d.className='tier';
-        d.innerHTML=`<label><input type="radio" name="tier" value="${t.id}"/> <strong>${t.name}</strong></label>
-          <div>${t.usage}</div><div>Price: <strong>${t.price}</strong></div>
-          <button class="download-btn" data-tier="${t.id}">Download Agreement</button>`;
-        c.appendChild(d);
+      const container = document.getElementById('tiersContainer'); container.innerHTML = '';
+      cfg.tiers.forEach(t => {
+        const div = document.createElement('div'); div.className = 'tier';
+        div.innerHTML = `
+          <label><input type="radio" name="tier" value="${t.id}"/> <strong>${t.name}</strong></label>
+          <div>${t.usage}</div>
+          <div>Price: <strong>${t.price}</strong></div>
+          <button class="download-btn" data-tier="${t.id}">Download Agreement</button>
+        `;
+        container.appendChild(div);
       });
-      document.querySelectorAll('input[name="tier"]').forEach(r=>r.onchange=()=>{
-        document.querySelectorAll('.download-btn').forEach(b=>b.style.display='none');
-        const btn=document.querySelector(`.download-btn[data-tier="${r.value}"]`);
-        if(btn) btn.style.display='block';
+      document.querySelectorAll('input[name="tier"]').forEach(r => r.onchange = () => {
+        document.querySelectorAll('.download-btn').forEach(b => b.style.display = 'none');
+        const btn = document.querySelector(`.download-btn[data-tier="${r.value}"]`);
+        if (btn) btn.style.display = 'block';
       });
-      document.querySelectorAll('.download-btn').forEach(b=>b.onclick=()=>generatePDF(b.dataset.tier));
+      document.querySelectorAll('.download-btn').forEach(b => b.onclick = () => generatePDF(b.dataset.tier));
     }
 
     function populatePricingEditor() {
-      const pc=document.getElementById('pricingContainer'); pc.innerHTML='';
-      cfg.tiers.forEach(t=>{ const d=document.createElement('div'); d.innerHTML=`<label>${t.name} Price:<input type="text" id="price_${t.id}" value="${t.price}"/></label>`; pc.appendChild(d);} );
+      const pc = document.getElementById('pricingContainer'); pc.innerHTML = '';
+      cfg.tiers.forEach(t => { const d = document.createElement('div'); d.innerHTML = `<label>${t.name} Price:<input type="text" id="price_${t.id}" value="${t.price}"/></label>`; pc.appendChild(d); });
     }
 
     function populateAgreementEditor() {
-      const sel=document.getElementById('editTierSelect'); sel.innerHTML='';
-      cfg.tiers.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);} );
-      sel.onchange=()=>document.getElementById('agreementEditor').value=cfg.agreements[sel.value];
-      sel.dispatchEvent(new Event('change'));
+      const sel = document.getElementById('editTierSelect'); sel.innerHTML = '';
+      cfg.tiers.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
+      sel.onchange = () => document.getElementById('agreementEditor').value = cfg.agreements[sel.value]; sel.dispatchEvent(new Event('change'));
     }
 
     async function initWidget() {
-      document.getElementById('bannerImg').src=cfg.banner;
-      document.getElementById('brandName').textContent=cfg.producerName;
+      document.getElementById('bannerImg').src = cfg.banner;
+      document.getElementById('brandName').textContent = cfg.producerName;
       populateTiers(); await renderNotification();
-      document.getElementById('continueBtn').onclick=async()=>{
-        const email=document.getElementById('emailInput').value;
-        const beat=document.getElementById('beatTitle').value;
-        const sel=document.querySelector('input[name="tier"]:checked');
-        const secret=atob(secretEnc);
-        if(email===secret||email===cfg.adminPassword){ document.getElementById('adminPanel').style.display='block'; await renderOrders(); populateAgreementEditor(); populatePricingEditor(); document.getElementById('bannerAdminURL').value=cfg.banner; return; }
-        if(!email||!beat||!sel) return alert('Select tier, enter beat and email.');
-        await addOrder({ date:new Date().toISOString(), beat, tier:sel.value, email, completed:false });
-        alert('Order received!'); document.getElementById('beatTitle').value=''; document.getElementById('emailInput').value='';
-        document.querySelectorAll('input[name="tier"]').forEach(i=>i.checked=false);
-        document.querySelectorAll('.download-btn').forEach(b=>b.style.display='none'); await renderNotification();
+      document.getElementById('continueBtn').onclick = async () => {
+        const email = document.getElementById('emailInput').value;
+        const beat = document.getElementById('beatTitle').value;
+        const sel = document.querySelector('input[name="tier"]:checked');
+        const secret = atob(secretEnc);
+        if (email === secret || email === cfg.adminPassword) {
+          document.getElementById('adminPanel').style.display = 'block'; await renderOrders(); populateAgreementEditor(); populatePricingEditor(); document.getElementById('bannerAdminURL').value = cfg.banner; return; }
+        if (!email || !beat || !sel) return alert('Select tier, enter beat and email.');
+        await addOrder({ date: new Date().toISOString(), beat, tier: sel.value, email, completed: false });
+        alert('Order received!'); document.getElementById('beatTitle').value=''; document.getElementById('emailInput').value=''; document.querySelectorAll('input[name="tier"]').forEach(i=>i.checked=false); document.querySelectorAll('.download-btn').forEach(b=>b.style.display='none'); await renderNotification();
       };
-      document.getElementById('viewPendingBtn').onclick=()=>{ const p=document.getElementById('pendingOrders'); p.style.display=p.style.display==='block'?'none':'block'; document.getElementById('completedOrders').style.display='none'; };
-      document.getElementById('viewCompletedBtn').onclick=()=>{ const c=document.getElementById('completedOrders'); c.style.display=c.style.display==='block'?'none':'block'; document.getElementById('pendingOrders').style.display='none'; };
-      document.getElementById('toggleAgreementBtn').onclick=()=>{ const s=document.getElementById('agreementSection'); s.style.display=s.style.display==='block'?'none':'block'; };
-      document.getElementById('togglePricingBtn').onclick=()=>{ const s=document.getElementById('pricingSection'); s.style.display=s.style.display==='block'?'none':'block'; };
-      document.getElementById('saveAgreementBtn').onclick=async()=>{ const id=document.getElementById('editTierSelect').value; cfg.agreements[id]=document.getElementById('agreementEditor').value; await saveConfig(cfg); alert('Agreement updated.'); };
-      document.getElementById('savePricingBtn').onclick=async()=>{ cfg.tiers.forEach(t=>t.price=document.getElementById('price_'+t.id).value); await saveConfig(cfg); alert('Pricing updated.'); populateTiers(); };
-      document.getElementById('saveBannerBtn').onclick=async()=>{ cfg.banner=document.getElementById('bannerAdminURL').value; document.getElementById('bannerImg').src=cfg.banner; await saveConfig(cfg); alert('Banner updated.'); };
-      document.getElementById('saveAdmin').onclick=async()=>{ const np=document.getElementById('newAdminPassword').value; if(np){ cfg.adminPassword=np; await saveConfig(cfg); alert('Password updated.'); document.getElementById('newAdminPassword').value=''; }};
-      document.getElementById('resetBtn').onclick=async()=>{ const pw=prompt('Enter admin password to reset:'); if(pw===cfg.adminPassword){ await deleteDoc(doc(db,'leasing','config')); const col=(await getDocs(collection(db,'leasing','orders','items'))).docs; await Promise.all(col.map(d=>deleteDoc(d.ref))); location.reload(); } else alert('Incorrect password.'); };
+      document.getElementById('viewPendingBtn').onclick = () => { const p = document.getElementById('pendingOrders'); p.style.display = p.style.display==='block'?'none':'block'; document.getElementById('completedOrders').style.display='none'; };
+      document.getElementById('viewCompletedBtn').onclick = () => { const c = document.getElementById('completedOrders'); c.style.display = c.style.display==='block'?'none':'block'; document.getElementById('pendingOrders').style.display='none'; };
+      document.getElementById('toggleAgreementBtn').onclick = () => { const s = document.getElementById('agreementSection'); s.style.display = s.style.display==='block'?'none':'block'; };
+      document.getElementById('togglePricingBtn').onclick = () => { const s = document.getElementById('pricingSection'); s.style.display = s.style.display==='block'?'none':'block'; };
+      document.getElementById('saveAgreementBtn').onclick = async () => { const id = document.getElementById('editTierSelect').value; cfg.agreements[id] = document.getElementById('agreementEditor').value; await saveConfig(cfg); alert('Agreement updated.'); };
+      document.getElementById('savePricingBtn').onclick = async () => { cfg.tiers.forEach(t => t.price = document.getElementById('price_'+t.id).value); await saveConfig(cfg); alert('Pricing updated.'); populateTiers(); };
+      document.getElementById('saveBannerBtn').onclick = async () => { cfg.banner = document.getElementById('bannerAdminURL').value; document.getElementById('bannerImg').src = cfg.banner; await saveConfig(cfg); alert('Banner updated.'); };
+      document.getElementById('saveAdmin').onclick = async () => { const np = document.getElementById('newAdminPassword').value; if (np) { cfg.adminPassword = np; await saveConfig(cfg); alert('Password updated.'); document.getElementById('newAdminPassword').value=''; } };
+      document.getElementById('resetBtn').onclick = async () => { const pw = prompt('Enter admin password to reset:'); if (pw === cfg.adminPassword) { await resetAll(); location.reload(); } else alert('Incorrect password.'); };
     }
   </script>
 </head>
 <body>
-  <!-- Setup Screen -->
-  <div class="container" id="setup">
-    <img src="https://static.wixstatic.com/media/afbb39_617140a20fbb47b2b858c0d3ef28a4ef~mv2.png" alt="Logo" style="max-width:120px; display:block; margin:0 auto 10px;" />
+  <div class="container" id="setup" style="display:none;">
+    <img src="https://static.wixstatic.com/media/afbb39_617140a20fbb47b2b858c0d3ef28a4ef~mv2.png" alt="Logo" style="max-width:120px; display:block; margin:0 auto 10px;">
     <h1>Checkmark Beat Leasing Setup</h1>
-    <label>Banner URL:<input type="url" id="bannerURL" placeholder="https://..." /></label>
-    <label>Producer Name:<input type="text" id="producerName" placeholder="Checkmark Audio" /></label>
+    <label>Banner URL:<input type="url" id="bannerURL" placeholder="https://..."></label>
+    <label>Producer Name:<input type="text" id="producerName" placeholder="Checkmark Audio"></label>
     <button id="saveSetup">Save & Launch Widget</button>
   </div>
 
-  <!-- Main Widget -->
   <div class="container" id="widget" style="display:none;">
     <div id="notification"></div>
-    <img id="bannerImg" alt="Banner" style="width:100%; margin-bottom:10px; display:block;" />
+    <img id="bannerImg" alt="Banner" style="width:100%; margin-bottom:10px; display:block;">
     <h2 id="brandName"></h2>
     <div class="instructions">To purchase a beat, select your lease tier, enter the Beat Title/ID and your contact email, then click "Submit Order." We’ll send payment instructions and deliver the beat upon confirmation.</div>
     <div class="tiers" id="tiersContainer"></div>
-    <label>Beat Title:<input type="text" id="beatTitle" /></label>
-    <label>Email:<input type="email" id="emailInput" /></label>
+    <label>Beat Title:<input type="text" id="beatTitle"></label>
+    <label>Email:<input type="email" id="emailInput"></label>
     <button id="continueBtn">Submit Order</button>
 
-    <!-- Admin Panel -->
     <div id="adminPanel">
       <h3>Admin Panel</h3>
       <div class="flex-row">
@@ -218,7 +250,7 @@
       <button id="toggleAgreementBtn">Toggle Lease Editor</button>
       <div id="agreementSection">
         <div class="flex-row" style="margin-bottom:10px;">
-          <label for="editTierSelect" style="margin:0; flex-shrink:0;">Select Tier:</label>
+          <label for="editTierSelect" style="margin:0; flex-shrink:0;">Tier:</label>
           <select id="editTierSelect" style="flex:1;"></select>
           <button id="saveAgreementBtn" style="flex-shrink:0;">Save Agreement</button>
         </div>
@@ -232,9 +264,9 @@
       </div>
 
       <h3>Banner & Password</h3>
-      <label>Banner URL:<input type="url" id="bannerAdminURL" /></label>
+      <label>Banner URL:<input type="url" id="bannerAdminURL"></label>
       <button id="saveBannerBtn">Save Banner</button>
-      <label>New Admin Password:<input type="text" id="newAdminPassword" /></label>
+      <label>New Admin Password:<input type="text" id="newAdminPassword"></label>
       <button id="saveAdmin">Save Password</button>
 
       <button id="resetBtn" style="margin-top:20px;">Reset All Data</button>

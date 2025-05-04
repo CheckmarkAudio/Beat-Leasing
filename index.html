@@ -17,32 +17,18 @@
     #notification { background: #fdd; padding: 10px; margin-bottom: 20px; border: 1px solid #f00; display: none; }
     #adminPanel { margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; display: none; }
     #agreementSection, #pricingSection { display: none; margin-top: 10px; }
-    ul { list-style: none; padding: 0; max-height: 150px; overflow-y: auto; }
+    ul { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; }
     li { margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
     .mark-btn { background: #000; color: #fff; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; }
     .flex-row { display: flex; gap: 8px; align-items: center; }
     .flex-row button { flex: 1; }
   </style>
-  <!-- jsPDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"></script>
-  <script>
-    // Initialize Firebase
-    firebase.initializeApp({
-      apiKey: "AIzaSyCarCLcVjERgmn0hOAoh3iN3poOIo9Zxsg",
-      authDomain: "beat-leasing.firebaseapp.com",
-      projectId: "beat-leasing",
-      storageBucket: "beat-leasing.appspot.com",
-      messagingSenderId: "881274422822",
-      appId: "1:881274422822:web:3d3913844fd839962048e7",
-      measurementId: "G-GY4Y2HWY4J"
-    });
-    var auth = firebase.auth();
-    var db   = firebase.firestore();
-  </script>
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <div class="container" id="setup">
@@ -57,12 +43,11 @@
     <div id="notification"></div>
     <img id="bannerImg" alt="Banner" style="width:100%; margin-bottom:10px; display:block;" />
     <h2 id="brandName"></h2>
-    <div class="instructions">To purchase a beat, select your lease tier, enter the Beat Title/ID and your contact email, then click "Submit Order." We’ll send payment instructions and deliver the beat upon confirmation.</div>
+    <div class="instructions">To purchase a beat, select your lease tier, enter the Beat Title/ID and your contact email, then click "Submit Order."</div>
     <div class="tiers" id="tiersContainer"></div>
     <label>Beat Title:<input type="text" id="beatTitle" /></label>
     <label>Email:<input type="email" id="emailInput" /></label>
     <button id="continueBtn">Submit Order</button>
-
     <div id="adminPanel">
       <h3>Admin Panel</h3>
       <div class="flex-row">
@@ -95,47 +80,61 @@
   </div>
 
   <script>
+    // Firebase initialization
+    firebase.initializeApp({
+      apiKey: "AIzaSyCarCLcVjERgmn0hOAoh3iN3poOIo9Zxsg",
+      authDomain: "beat-leasing.firebaseapp.com",
+      projectId: "beat-leasing",
+      storageBucket: "beat-leasing.appspot.com",
+      messagingSenderId: "881274422822",
+      appId: "1:881274422822:web:3d3913844fd839962048e7",
+      measurementId: "G-GY4Y2HWY4J"
+    });
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
     const defaultConfig = {
       banner: '',
       producerName: '',
       adminPassword: 'Checkmark Audio',
       tiers: [
-        {id:'mp3',      name:'MP3 Lease',      usage:'Up to 10,000 streams…', price:'$30'},
-        {id:'wav',      name:'WAV Lease',      usage:'Up to 50,000 streams…', price:'$60'},
-        {id:'unlimited',name:'Unlimited Lease',usage:'Unlimited streams…',    price:'$150'},
-        {id:'exclusive',name:'Exclusive Rights',usage:'Sole license…',         price:'$800'}
+        {id:'mp3',name:'MP3 Lease',usage:'Up to 10,000 streams…',price:'$30'},
+        {id:'wav',name:'WAV Lease',usage:'Up to 50,000 streams…',price:'$60'},
+        {id:'unlimited',name:'Unlimited Lease',usage:'Unlimited streams…',price:'$150'},
+        {id:'exclusive',name:'Exclusive Rights',usage:'Sole license…',price:'$800'}
       ],
       agreements: {
-        mp3:       `MP3 Lease Agreement\n\n1. Grant…`,
-        wav:       `WAV Lease Agreement\n\n1. Grant…`,
+        mp3: `MP3 Lease Agreement\n\n1. Grant…`,
+        wav: `WAV Lease Agreement\n\n1. Grant…`,
         unlimited: `Unlimited Lease Agreement\n\n1. Grant…`,
         exclusive: `Exclusive Rights Agreement\n\n1. Grant…`
       }
     };
 
     let cfg, uid, docRef;
-    const setupDiv  = document.getElementById('setup');
+    const setupDiv = document.getElementById('setup');
     const widgetDiv = document.getElementById('widget');
     function showSetup() { setupDiv.style.display = 'block'; widgetDiv.style.display = 'none'; }
-    function showWidget(){ setupDiv.style.display='none'; widgetDiv.style.display='block'; }
+    function showWidget() { setupDiv.style.display = 'none'; widgetDiv.style.display = 'block'; }
 
+    // Load and save orders
     async function loadOrders() {
       const snap = await db.collection('configs').doc(uid).collection('orders').get();
-      return snap.docs.map(d=>({id:d.id,...d.data()}));
+      return snap.docs.map(d => ({id:d.id, ...d.data()}));
     }
     async function saveOrder(order) {
       await db.collection('configs').doc(uid).collection('orders').add(order);
     }
     async function markComplete(id) {
-      await db.collection('configs').doc(uid).collection('orders').doc(id).update({completed: true});
+      await db.collection('configs').doc(uid).collection('orders').doc(id).update({completed:true});
     }
 
     async function renderNotification() {
       const orders = await loadOrders();
-      const pending = orders.filter(o=>!o.completed).length;
+      const pending = orders.filter(o => !o.completed).length;
       const el = document.getElementById('notification');
-      if (pending) { el.textContent = `You have ${pending} pending orders`; el.style.display='block'; }
-      else { el.style.display='none'; }
+      if (pending) { el.textContent = `You have ${pending} pending orders`; el.style.display = 'block'; }
+      else { el.style.display = 'none'; }
     }
 
     async function renderOrders() {
@@ -144,106 +143,195 @@
       const c = document.getElementById('completedOrders');
       p.innerHTML = '';
       c.innerHTML = '';
-      orders.forEach(o=>{
+      orders.forEach(o => {
         const li = document.createElement('li');
         li.textContent = `${new Date(o.date).toLocaleString()} | ${o.beat} | ${o.tier} | ${o.email}`;
         if (!o.completed) {
           const btn = document.createElement('button');
-          btn.textContent = 'Mark Complete'; btn.className='mark-btn';
+          btn.textContent = 'Mark Complete';
+          btn.className = 'mark-btn';
           btn.onclick = () => markComplete(o.id).then(renderOrders).then(renderNotification);
-          li.appendChild(btn); p.appendChild(li);
-        } else { c.appendChild(li); }
+          li.appendChild(btn);
+          p.appendChild(li);
+        } else {
+          c.appendChild(li);
+        }
       });
     }
 
     function generatePDF(id) {
-      const {jsPDF} = window.jspdf; const doc = new jsPDF(); let y=20;
-      doc.setFontSize(16); doc.text(cfg.tiers.find(t=>t.id===id).name+' Agreement',20,y); y+=10;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let y = 20;
+      doc.setFontSize(16);
+      doc.text(cfg.tiers.find(t => t.id === id).name + ' Agreement', 20, y);
+      y += 10;
       doc.setFontSize(11);
-      const text = cfg.agreements[id].replace(/{{producer}}/g,cfg.producerName);
-      const lines = doc.splitTextToSize(text,170);
-      lines.forEach(line=>{ if(y>280){ doc.addPage(); y=20;} doc.text(line,20,y); y+=7;});
-      doc.save(id+'-agreement.pdf');
+      const text = cfg.agreements[id].replace(/{{producer}}/g, cfg.producerName);
+      const lines = doc.splitTextToSize(text, 170);
+      lines.forEach(line => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.text(line, 20, y); y += 7;
+      });
+      doc.save(id + '-agreement.pdf');
     }
 
     function populateTiers() {
-      const container = document.getElementById('tiersContainer'); container.innerHTML='';
-      cfg.tiers.forEach(t=>{
-        const div = document.createElement('div'); div.className='tier';
-        div.innerHTML = `<label><input type="radio" name="tier" value="${t.id}"/> <strong>${t.name}</strong></label>`+
-                        `<div>${t.usage}</div><div>Price: <strong>${t.price}</strong></div>`+
-                        `<button class="download-btn" data-tier="${t.id}">Download Agreement</button>`;
+      const container = document.getElementById('tiersContainer');
+      container.innerHTML = '';
+      cfg.tiers.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'tier';
+        div.innerHTML = `
+          <label><input type="radio" name="tier" value="${t.id}"/> <strong>${t.name}</strong></label>
+          <div>${t.usage}</div>
+          <div>Price: <strong>${t.price}</strong></div>
+          <button class="download-btn" data-tier="${t.id}">Download Agreement</button>
+        `;
         container.appendChild(div);
       });
-      document.querySelectorAll('input[name="tier"]').forEach(r=>r.onchange=()=>{
-        document.querySelectorAll('.download-btn').forEach(b=>b.style.display='none');
-        const btn = document.querySelector(`.download-btn[data-tier="${r.value}"]`);
-        if (btn) btn.style.display='block';
+      document.querySelectorAll('input[name="tier"]').forEach(r => {
+        r.onchange = () => {
+          document.querySelectorAll('.download-btn').forEach(b => b.style.display = 'none');
+          const btn = document.querySelector(`.download-btn[data-tier="${r.value}"]`);
+          if (btn) btn.style.display = 'block';
+        };
       });
-      document.querySelectorAll('.download-btn').forEach(b=>b.onclick=()=>generatePDF(b.dataset.tier));
+      document.querySelectorAll('.download-btn').forEach(b => {
+        b.onclick = () => generatePDF(b.dataset.tier);
+      });
     }
 
     function populateAgreementEditor() {
-      const sel = document.getElementById('editTierSelect'); sel.innerHTML='';
-      cfg.tiers.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o); });
-      sel.onchange=()=>document.getElementById('agreementEditor').value=cfg.agreements[sel.value];
+      const sel = document.getElementById('editTierSelect');
+      sel.innerHTML = '';
+      cfg.tiers.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.id; o.textContent = t.name;
+        sel.appendChild(o);
+      });
+      sel.onchange = () => {
+        document.getElementById('agreementEditor').value = cfg.agreements[sel.value];
+      };
       sel.dispatchEvent(new Event('change'));
     }
 
     function populatePricingEditor() {
-      const pc = document.getElementById('pricingContainer'); pc.innerHTML='';
-      cfg.tiers.forEach(t=>{ const d=document.createElement('div'); d.innerHTML=`<label>${t.name} Price:<input type="text" id="price_${t.id}" value="${t.price}"/></label>`; pc.appendChild(d); });
+      const pc = document.getElementById('pricingContainer');
+      pc.innerHTML = '';
+      cfg.tiers.forEach(t => {
+        const d = document.createElement('div');
+        d.innerHTML = `<label>${t.name} Price:<input type="text" id="price_${t.id}" value="${t.price}"/></label>`;
+        pc.appendChild(d);
+      });
     }
 
     function initWidget() {
-      document.getElementById('bannerImg').src=cfg.banner;
-      document.getElementById('brandName').textContent=cfg.producerName;
-      populateTiers(); renderNotification();
-      document.getElementById('continueBtn').onclick=async()=>{
-        const email=document.getElementById('emailInput').value.trim();
-        const beat=document.getElementById('beatTitle').value.trim();
-        const sel=document.querySelector('input[name="tier"]:checked');
-        if(!email||!beat||!sel) return alert('Select tier, enter beat and email.');
-        if(email===cfg.adminPassword){
-          document.getElementById('adminPanel').style.display='block'; renderOrders(); populateAgreementEditor(); populatePricingEditor(); document.getElementById('bannerAdminURL').value=cfg.banner; return;
+      document.getElementById('bannerImg').src = cfg.banner;
+      document.getElementById('brandName').textContent = cfg.producerName;
+      populateTiers();
+      renderNotification();
+
+      document.getElementById('continueBtn').onclick = async () => {
+        const email = document.getElementById('emailInput').value.trim();
+        const beat = document.getElementById('beatTitle').value.trim();
+        const sel = document.querySelector('input[name="tier"]:checked');
+        if (!email || !beat || !sel) return alert('Select tier, enter beat and email.');
+        if (email === cfg.adminPassword) {
+          document.getElementById('adminPanel').style.display = 'block';
+          renderOrders(); populateAgreementEditor(); populatePricingEditor();
+          document.getElementById('bannerAdminURL').value = cfg.banner;
+          return;
         }
-        await saveOrder({date:new Date().toISOString(),beat,tier:sel.value,email,completed:false}); alert('Order received!'); document.getElementById('beatTitle').value=''; document.getElementById('emailInput').value=''; document.querySelectorAll('input[name="tier"]').forEach(r=>r.checked=false); document.querySelectorAll('.download-btn').forEach(b=>b.style.display='none'); renderNotification();
+        await saveOrder({ date: new Date().toISOString(), beat, tier: sel.value, email, completed: false });
+        alert('Order received!');
+        document.getElementById('beatTitle').value = '';
+        document.getElementById('emailInput').value = '';
+        document.querySelectorAll('input[name="tier"]').forEach(r => r.checked = false);
+        document.querySelectorAll('.download-btn').forEach(b => b.style.display = 'none');
+        renderNotification();
       };
-      document.getElementById('viewPendingBtn').onclick=()=>toggle('pendingOrders');
-      document.getElementById('viewCompletedBtn').onclick=()=>toggle('completedOrders');
-      document.getElementById('toggleAgreementBtn').onclick=()=>toggle('agreementSection');
-      document.getElementById('togglePricingBtn').onclick=()=>toggle('pricingSection');
-      document.getElementById('saveAgreementBtn').onclick=async()=>{ const id=document.getElementById('editTierSelect').value; cfg.agreements[id]=document.getElementById('agreementEditor').value; await docRef.set(cfg); alert('Agreement updated.'); };
-      document.getElementById('savePricingBtn').onclick=async()=>{ cfg.tiers.forEach(t=>t.price=document.getElementById(`price_${t.id}`).value); await docRef.set(cfg); alert('Pricing updated.'); populateTiers(); };
-      document.getElementById('saveBannerBtn').onclick=async()=>{ cfg.banner=document.getElementById('bannerAdminURL').value.trim(); document.getElementById('bannerImg').src=cfg.banner; await docRef.set(cfg); alert('Banner updated.'); };
-      document.getElementById('saveAdmin').onclick=async()=>{ const np=document.getElementById('newAdminPassword').value.trim(); if(!np)return; cfg.adminPassword=np; await docRef.set(cfg); alert('Password updated.'); document.getElementById('newAdminPassword').value=''; };
-      document.getElementById('resetBtn').onclick=async()=>{ const pw=prompt('Enter admin password to reset:'); if(pw===cfg.adminPassword){ await docRef.delete(); location.reload(); } else alert('Incorrect password.'); };
+
+      document.getElementById('viewPendingBtn').onclick = () => toggle('pendingOrders');
+      document.getElementById('viewCompletedBtn').onclick = () => toggle('completedOrders');
+      document.getElementById('toggleAgreementBtn').onclick = () => toggle('agreementSection');
+      document.getElementById('togglePricingBtn').onclick = () => toggle('pricingSection');
+
+      document.getElementById('saveAgreementBtn').onclick = async () => {
+        const id = document.getElementById('editTierSelect').value;
+        cfg.agreements[id] = document.getElementById('agreementEditor').value;
+        await docRef.set(cfg);
+        alert('Agreement updated.');
+      };
+
+      document.getElementById('savePricingBtn').onclick = async () => {
+        cfg.tiers.forEach(t => t.price = document.getElementById(`price_${t.id}`).value);
+        await docRef.set(cfg);
+        alert('Pricing updated.');
+        populateTiers();
+      };
+
+      document.getElementById('saveBannerBtn').onclick = async () => {
+        cfg.banner = document.getElementById('bannerAdminURL').value.trim();
+        document.getElementById('bannerImg').src = cfg.banner;
+        await docRef.set(cfg);
+        alert('Banner updated.');
+      };
+
+      document.getElementById('saveAdmin').onclick = async () => {
+        const np = document.getElementById('newAdminPassword').value.trim();
+        if (!np) return;
+        cfg.adminPassword = np;
+        await docRef.set(cfg);
+        alert('Password updated.');
+        document.getElementById('newAdminPassword').value = '';
+      };
+
+      document.getElementById('resetBtn').onclick = async () => {
+        const pw = prompt('Enter admin password to reset:');
+        if (pw === cfg.adminPassword) {
+          await docRef.delete();
+          location.reload();
+        } else alert('Incorrect password.');
+      };
     }
 
-    function toggle(id){ const e=document.getElementById(id); e.style.display=e.style.display==='block'?'none':'block'; }
+    function toggle(id) {
+      const e = document.getElementById(id);
+      e.style.display = e.style.display === 'block' ? 'none' : 'block';
+    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      // 1) Sign in anonymously
-      auth.signInAnonymously().catch(console.error);
-      // 2) Bind Save & Launch setup
-      document.getElementById('saveSetup').onclick=async()=>{
-        if(!auth.currentUser){ await auth.signInAnonymously(); await new Promise(r=>{ const unsub=auth.onAuthStateChanged(u=>{ if(u){ unsub(); r();}}); }); }
-        uid=auth.currentUser.uid; docRef=db.collection('configs').doc(uid);
-        const snap=await docRef.get(); cfg=snap.exists? snap.data():defaultConfig;
-        cfg.agreements=Object.assign({},defaultConfig.agreements,cfg.agreements);
-        cfg.banner=document.getElementById('bannerURL').value.trim();
-        cfg.producerName=document.getElementById('producerName').value.trim()||defaultConfig.producerName;
-        await docRef.set(cfg);
-        initWidget(); showWidget();
-      };
-      // 3) Handle return users
-      auth.onAuthStateChanged(async user=>{
-        if(!user) return;
-        uid=user.uid; docRef=db.collection('configs').doc(uid);
-        const snap=await docRef.get();
-        if(snap.exists && snap.data().producerName){ cfg=snap.data(); initWidget(); showWidget(); }
-        else { showSetup(); }
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Sign in anonymously
+      await auth.signInAnonymously().catch(console.error);
+
+      // Handle auth state
+      auth.onAuthStateChanged(async user => {
+        if (!user) return;
+        uid = user.uid;
+        docRef = db.collection('configs').doc(uid);
+        const snap = await docRef.get();
+        if (snap.exists && snap.data().producerName) {
+          cfg = snap.data();
+          initWidget();
+          showWidget();
+        } else showSetup();
       });
+
+      // Save setup
+      document.getElementById('saveSetup').onclick = async () => {
+        if (!auth.currentUser) await auth.signInAnonymously();
+        uid = auth.currentUser.uid;
+        docRef = db.collection('configs').doc(uid);
+        const snap = await docRef.get();
+        cfg = snap.exists ? snap.data() : defaultConfig;
+        cfg.agreements = Object.assign({}, defaultConfig.agreements, cfg.agreements);
+        cfg.banner = document.getElementById('bannerURL').value.trim();
+        cfg.producerName = document.getElementById('producerName').value.trim() || defaultConfig.producerName;
+        await docRef.set(cfg);
+        initWidget();
+        showWidget();
+      };
     });
   </script>
 </body>

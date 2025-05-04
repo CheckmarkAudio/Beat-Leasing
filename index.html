@@ -229,6 +229,31 @@
     function toggle(id) { const e = document.getElementById(id); e.style.display = e.style.display==='block'?'none':'block'; }
 
     document.addEventListener('DOMContentLoaded', () => {
+      // Bind Save Setup button
+      document.getElementById('saveSetup').onclick = async () => {
+        // Ensure authentication
+        if (!auth.currentUser) {
+          await auth.signInAnonymously();
+          await new Promise(resolve => {
+            const unsub = auth.onAuthStateChanged(u => { if (u) { unsub(); resolve(); }});
+          });
+        }
+        // Initialize user-specific config document
+        uid = auth.currentUser.uid;
+        docRef = db.collection('configs').doc(uid);
+        const snap = await docRef.get();
+        cfg = snap.exists ? snap.data() : defaultConfig;
+        // Merge in any new agreements
+        cfg.agreements = Object.assign({}, defaultConfig.agreements, cfg.agreements);
+        // Save inputs
+        cfg.banner = document.getElementById('bannerURL').value.trim();
+        cfg.producerName = document.getElementById('producerName').value.trim() || defaultConfig.producerName;
+        await docRef.set(cfg);
+        initWidget();
+        showWidget();
+      };
+
+      
       auth.onAuthStateChanged(async user => {
         if (!user) return;
         uid = user.uid; docRef = db.collection('configs').doc(uid);

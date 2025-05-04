@@ -41,8 +41,6 @@
       measurementId: "G-GY4Y2HWY4J"
     });
     var auth = firebase.auth();
-    var db   = firebase.firestore();
-    auth.signInAnonymously().catch(console.error);
   </script>
 </head>
 <body>
@@ -145,8 +143,7 @@
           const btn = document.createElement('button'); btn.textContent='Mark Complete'; btn.className='mark-btn';
           btn.onclick = () => markComplete(o.id).then(renderOrders).then(renderNotification);
           li.appendChild(btn); p.appendChild(li);
-        } else { c.appendChild(li); }
-      });
+        } else { c.appendChild(li);  });
     }
 
     function generatePDF(id) {
@@ -168,7 +165,7 @@
                         `<button class="download-btn" data-tier="${t.id}">Download Agreement</button>`;
         container.appendChild(div);
       });
-      document.querySelectorAll('input[name="tier"]').forEach(r => r.onchange = () => {
+      document.querySelectorAll('input[name="tier"]').forEach(r => r.onchange =
         document.querySelectorAll('.download-btn').forEach(b=>b.style.display='none');
         const btn = document.querySelector(`.download-btn[data-tier="${r.value}"]`);
         if (btn) btn.style.display = 'block';
@@ -229,6 +226,10 @@
     function toggle(id) { const e = document.getElementById(id); e.style.display = e.style.display==='block'?'none':'block'; }
 
     document.addEventListener('DOMContentLoaded', () => {
+      // Sign in anonymously once listener is ready
+      auth.signInAnonymously().catch(console.error);
+
+       () => {
       // Bind Save Setup button
       document.getElementById('saveSetup').onclick = async () => {
         // Ensure authentication

@@ -22,6 +22,7 @@
     .mark-btn { background: #000; color: #fff; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; }
     .flex-row { display: flex; gap: 8px; align-items: center; }
     .flex-row button { flex: 1; }
+    #bannerImg { display: none; width: 100%; margin-bottom: 10px; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <!-- Firebase SDKs -->
@@ -46,7 +47,7 @@
     getAnalytics(app);
     const db = getFirestore(app);
 
-    // Default configuration and secret code
+    // Default config
     const leaseMakerConfig = {
       banner: '',
       producerName: '',
@@ -103,7 +104,7 @@
       await Promise.all(snaps.docs.map(d => deleteDoc(d.ref)));
     }
 
-    // DOM references
+    // DOM refs
     const setupDiv = document.getElementById('setup');
     const widgetDiv = document.getElementById('widget');
     let cfg;
@@ -111,8 +112,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       cfg = await loadConfig();
       if (!cfg.producerName) {
-        setupDiv.style.display = 'block';
-        widgetDiv.style.display = 'none';
+        setupDiv.style.display = 'block'; widgetDiv.style.display = 'none';
         document.getElementById('saveSetup').onclick = async () => {
           cfg.banner = document.getElementById('bannerURL').value;
           cfg.producerName = document.getElementById('producerName').value || leaseMakerConfig.producerName;
@@ -120,9 +120,7 @@
           location.reload();
         };
       } else {
-        setupDiv.style.display = 'none';
-        widgetDiv.style.display = 'block';
-        initWidget();
+        setupDiv.style.display = 'none'; widgetDiv.style.display = 'block'; initWidget();
       }
     });
 
@@ -144,9 +142,7 @@
           const btn = document.createElement('button'); btn.textContent = 'Mark Complete'; btn.className = 'mark-btn';
           btn.onclick = async () => { await updateOrder(o.id, { completed: true }); renderOrders(); renderNotification(); };
           li.appendChild(btn); pList.appendChild(li);
-        } else {
-          cList.appendChild(li);
-        }
+        } else cList.appendChild(li);
       });
     }
 
@@ -187,13 +183,15 @@
     }
 
     function populateAgreementEditor() {
-      const sel = document.getElementById('editTierSelect'); sel.innerHTML = '';
-      cfg.tiers.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
+      const sel = document.getElementById('editTierSelect'); sel.innerHTML = ''; cfg.tiers.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
       sel.onchange = () => document.getElementById('agreementEditor').value = cfg.agreements[sel.value]; sel.dispatchEvent(new Event('change'));
     }
 
     async function initWidget() {
-      document.getElementById('bannerImg').src = cfg.banner;
+      // Banner
+      const img = document.getElementById('bannerImg');
+      if (cfg.banner) { img.src = cfg.banner; img.style.display = 'block'; } else { img.style.display = 'none'; }
+      document.getElementById('bannerAdminURL').value = cfg.banner;
       document.getElementById('brandName').textContent = cfg.producerName;
       populateTiers(); await renderNotification();
       document.getElementById('continueBtn').onclick = async () => {
@@ -202,15 +200,15 @@
         const sel = document.querySelector('input[name="tier"]:checked');
         const secret = atob(secretEnc);
         if (email === secret || email === cfg.adminPassword) {
-          document.getElementById('adminPanel').style.display = 'block'; await renderOrders(); populateAgreementEditor(); populatePricingEditor(); document.getElementById('bannerAdminURL').value = cfg.banner; return; }
+          document.getElementById('adminPanel').style.display = 'block'; await renderOrders(); populateAgreementEditor(); populatePricingEditor(); return; }
         if (!email || !beat || !sel) return alert('Select tier, enter beat and email.');
         await addOrder({ date: new Date().toISOString(), beat, tier: sel.value, email, completed: false });
         alert('Order received!'); document.getElementById('beatTitle').value=''; document.getElementById('emailInput').value=''; document.querySelectorAll('input[name="tier"]').forEach(i=>i.checked=false); document.querySelectorAll('.download-btn').forEach(b=>b.style.display='none'); await renderNotification();
       };
       document.getElementById('viewPendingBtn').onclick = () => { const p = document.getElementById('pendingOrders'); p.style.display = p.style.display==='block'?'none':'block'; document.getElementById('completedOrders').style.display='none'; };
-      document.getElementById('viewCompletedBtn').onclick = () => { const c = document.getElementById('completedOrders'); c.style.display = c.style.display==='block'?'none':'block'; document.getElementById('pendingOrders').style.display='none'; };
-      document.getElementById('toggleAgreementBtn').onclick = () => { const s = document.getElementById('agreementSection'); s.style.display = s.style.display==='block'?'none':'block'; };
-      document.getElementById('togglePricingBtn').onclick = () => { const s = document.getElementById('pricingSection'); s.style.display = s.style.display==='block'?'none':'block'; };
+      document.getElementById('viewCompletedBtn').onclick = () => { const cList = document.getElementById('completedOrders'); cList.style.display = cList.style.display==='block'?'none':'block'; document.getElementById('pendingOrders').style.display='none'; };
+      document.getElementById('toggleAgreementBtn').onclick = () => { const sec = document.getElementById('agreementSection'); sec.style.display = sec.style.display==='block'?'none':'block'; };
+      document.getElementById('togglePricingBtn').onclick = () => { const sec = document.getElementById('pricingSection'); sec.style.display = sec.style.display==='block'?'none':'block'; };
       document.getElementById('saveAgreementBtn').onclick = async () => { const id = document.getElementById('editTierSelect').value; cfg.agreements[id] = document.getElementById('agreementEditor').value; await saveConfig(cfg); alert('Agreement updated.'); };
       document.getElementById('savePricingBtn').onclick = async () => { cfg.tiers.forEach(t => t.price = document.getElementById('price_'+t.id).value); await saveConfig(cfg); alert('Pricing updated.'); populateTiers(); };
       document.getElementById('saveBannerBtn').onclick = async () => { cfg.banner = document.getElementById('bannerAdminURL').value; document.getElementById('bannerImg').src = cfg.banner; await saveConfig(cfg); alert('Banner updated.'); };
@@ -230,7 +228,7 @@
 
   <div class="container" id="widget" style="display:none;">
     <div id="notification"></div>
-    <img id="bannerImg" alt="Banner" style="width:100%; margin-bottom:10px; display:block;">
+    <img id="bannerImg" alt="Banner">
     <h2 id="brandName"></h2>
     <div class="instructions">To purchase a beat, select your lease tier, enter the Beat Title/ID and your contact email, then click "Submit Order." We’ll send payment instructions and deliver the beat upon confirmation.</div>
     <div class="tiers" id="tiersContainer"></div>

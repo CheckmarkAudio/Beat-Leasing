@@ -8,41 +8,28 @@
     body { font-family: Arial, sans-serif; background: #fff; color: #000; margin: 0; padding: 20px; }
     .container { max-width: 480px; margin: 20px auto; border: 1px solid #000; padding: 20px; border-radius: 8px; }
     h1, h2, h3 { margin-top: 0; text-align: center; }
-    .instructions { background: #eef; padding: 10px; border: 1px solid #99c; border-radius: 4px; margin: 15px 0; }
     label { display: block; margin: 10px 0 5px; }
-    input, button, textarea, select { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #000; border-radius: 4px; box-sizing: border-box; }
+    input, button, textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #000; border-radius: 4px; box-sizing: border-box; }
     .tiers { margin: 20px 0; }
     .tier { margin-bottom: 15px; border: 1px solid #000; padding: 10px; border-radius: 6px; }
-    .download-btn { display: none; background: #000; color: #fff; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; margin-top: 8px; }
-    #notification { background: #fdd; padding: 10px; margin-bottom: 20px; border: 1px solid #f00; display: none; }
-    #adminPanel { margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; display: none; }
-    #agreementSection, #pricingSection { display: none; margin-top: 10px; }
-    ul { list-style: none; padding: 0; }
-    li { margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
-    .mark-btn { background: #000; color: #fff; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; }
-    .flex-row { display: flex; gap: 8px; align-items: center; }
+    .flex-row { display: flex; gap: 8px; }
     .flex-row button { flex: 1; }
+    #notification { background: #fdd; padding: 10px; margin-bottom: 20px; border: 1px solid #f00; display: none; }
+    #ordersList li { margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    .mark-btn { background: #000; color: #fff; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; }
+    #bannerImage { width: 100%; margin-bottom: 15px; display: none; }
+    #studioName { margin-bottom: 15px; font-size: 1.5em; }
+    #adminLogin { margin-bottom: 20px; }
+    #configEditor { height: 200px; font-family: monospace; }
   </style>
-  <!-- CDNs for jsPDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <!-- Firebase modules via CDN -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
     import { getAnalytics } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js';
     import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, updateDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
 
-    // Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyCarCLcVjERgmn0hOAoh3iN3poOIo9Zxsg",
-      authDomain: "beat-leasing.firebaseapp.com",
-      projectId: "beat-leasing",
-      storageBucket: "beat-leasing.appspot.com",
-      messagingSenderId: "881274422822",
-      appId: "1:881274422822:web:3d3913844fd839962048e7",
-      measurementId: "G-GY4Y2HWY4J"
-    };
-
-    // Initialize Firebase
+    // Firebase config
+    const firebaseConfig = { /* same config */ };
     const app = initializeApp(firebaseConfig);
     const analytics = getAnalytics(app);
     const db = getFirestore(app);
@@ -53,16 +40,16 @@
       producerName: 'Checkmark Audio',
       adminPassword: 'Checkmark Audio',
       tiers: [
-        {id:'mp3',name:'MP3 Lease',usage:'Up to 10,000 streams, 1 video, credit & non-exclusive',price:'$30'},
-        {id:'wav',name:'WAV Lease',usage:'Up to 50,000 streams, 2 videos, stems unavailable',price:'$60'},
-        {id:'unlimited',name:'Unlimited Lease',usage:'Unlimited streams & sales, non-exclusive',price:'$150'},
-        {id:'exclusive',name:'Exclusive Rights',usage:'Sole license, unlimited use',price:'$800'}
+        { id: 'mp3', name: 'MP3 Lease', usage: 'Up to 10,000 streams, 1 video, credit & non-exclusive', price: '$30' },
+        { id: 'wav', name: 'WAV Lease', usage: 'Up to 50,000 streams, 2 videos, stems unavailable', price: '$60' },
+        { id: 'unlimited', name: 'Unlimited Lease', usage: 'Unlimited streams & sales, non-exclusive', price: '$150' },
+        { id: 'exclusive', name: 'Exclusive Rights', usage: 'Sole license, unlimited use', price: '$800' }
       ],
       agreements: {
-        mp3: `MP3 Lease Agreement\n\n1. Grant of License: Non-exclusive, personal use license...`,
-        wav: `WAV Lease Agreement\n\n1. Grant of License: Non-exclusive license...`,
-        unlimited: `Unlimited Lease Agreement\n\n1. Grant of License: Non-exclusive, unlimited...`,
-        exclusive: `Exclusive Rights Agreement\n\n1. Grant of License: Exclusive, worldwide...`
+        mp3: `MP3 Lease Agreement\n\n1. Grant of License: Non-exclusive, personal use license.\n2. Up to 10,000 streams, one video.\n3. Non-exclusive rights.`,
+        wav: `WAV Lease Agreement\n\n1. Grant of License: Non-exclusive, high-quality audio.\n2. Up to 50,000 streams, two videos.\n3. Stems not included.`,
+        unlimited: `Unlimited Lease Agreement\n\n1. Grant of License: Non-exclusive, unlimited use.\n2. Includes stems.\n3. Producer retains publishing rights.`,
+        exclusive: `Exclusive Rights Agreement\n\n1. Exclusive, worldwide rights.\n2. All media uses.\n3. No further licenses.`
       }
     };
 
@@ -75,140 +62,144 @@
       return defaultConfig;
     }
     async function saveConfig(cfg) {
-      await setDoc(doc(db,'leasing','config'), cfg);
+      await setDoc(doc(db, 'leasing', 'config'), cfg);
     }
-
     async function loadOrders() {
-      const col = collection(db, 'leasing', 'orders', 'items');
-      const snap = await getDocs(col);
+      const snap = await getDocs(collection(db, 'leasing', 'orders', 'items'));
       return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     }
     async function addOrder(order) {
-      await addDoc(collection(db,'leasing','orders','items'), order);
+      await addDoc(collection(db, 'leasing', 'orders', 'items'), order);
     }
     async function updateOrder(id, data) {
-      await updateDoc(doc(db,'leasing','orders','items',id), data);
+      await updateDoc(doc(db, 'leasing', 'orders', 'items', id), data);
     }
 
-    // UI rendering and logic
+    // UI functions
     function renderNotification(msg) {
       const note = document.getElementById('notification');
-      note.textContent = msg;
-      note.style.display = 'block';
+      note.textContent = msg; note.style.display = 'block';
       setTimeout(() => note.style.display = 'none', 3000);
     }
-
     function populateTiers() {
-      const container = document.getElementById('tiersContainer');
-      container.innerHTML = '';
+      const container = document.getElementById('tiersContainer'); container.innerHTML = '';
       cfg.tiers.forEach(t => {
-        const div = document.createElement('div');
-        div.className = 'tier';
-        div.innerHTML = `
-          <h3>${t.name}</h3>
-          <p>${t.usage}</p>
-          <div class="flex-row">
-            <button class="lease-btn" data-id="${t.id}">Lease - ${t.price}</button>
-            <button class="agreement-btn" data-id="${t.id}">View Agreement</button>
-          </div>
-        `;
+        const div = document.createElement('div'); div.className = 'tier';
+        div.innerHTML = `<h3>${t.name}</h3><p>${t.usage}</p><div class="flex-row">` +
+                        `<button class="lease-btn" data-id="${t.id}">${t.price} Lease</button>` +
+                        `<button class="agreement-btn" data-id="${t.id}">Agreement</button></div>`;
         container.appendChild(div);
       });
-
-      document.querySelectorAll('.lease-btn').forEach(btn => {
-        btn.onclick = async () => {
-          await addOrder({ tierId: btn.dataset.id, date: Date.now(), status: 'pending' });
-          renderNotification('Order placed!');
-          renderOrders(await loadOrders());
-        };
+      document.querySelectorAll('.lease-btn').forEach(btn => btn.onclick = async () => {
+        await addOrder({ tierId: btn.dataset.id, date: Date.now(), status: 'pending' });
+        renderNotification('Order placed!'); renderOrders(await loadOrders());
       });
-
-      document.querySelectorAll('.agreement-btn').forEach(btn => {
-        btn.onclick = () => generatePDF(btn.dataset.id);
-      });
+      document.querySelectorAll('.agreement-btn').forEach(btn => btn.onclick = () => generatePDF(btn.dataset.id));
     }
-
     function renderOrders(orders) {
-      const list = document.getElementById('ordersList');
-      list.innerHTML = '';
+      const list = document.getElementById('ordersList'); list.innerHTML = '';
       orders.forEach(o => {
         const li = document.createElement('li');
-        const tier = cfg.tiers.find(t => t.id === o.tierId)?.name || o.tierId;
-        li.innerHTML = `<strong>ID:</strong> ${o.id}<br><strong>Tier:</strong> ${tier}<br><strong>Status:</strong> ${o.status}`;
+        const name = cfg.tiers.find(t => t.id === o.tierId)?.name || o.tierId;
+        li.innerHTML = `<strong>${name}</strong> (ID: ${o.id}) - ${o.status}`;
         if (o.status === 'pending') {
-          const mark = document.createElement('button');
-          mark.textContent = 'Mark Completed';
-          mark.className = 'mark-btn';
-          mark.onclick = async () => {
-            await updateOrder(o.id, { status: 'completed' });
-            renderOrders(await loadOrders());
-          };
-          li.appendChild(mark);
+          const btn = document.createElement('button'); btn.textContent = 'Mark Completed';
+          btn.className = 'mark-btn'; btn.onclick = async () => { await updateOrder(o.id, {status:'completed'}); renderOrders(await loadOrders()); };
+          li.appendChild(btn);
         }
         list.appendChild(li);
       });
     }
+    function showAdminPanel() {
+      document.getElementById('adminLogin').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'block';
+      document.getElementById('configEditor').value = JSON.stringify(cfg, null, 2);
+    }
+    async function saveEditedConfig() {
+      try {
+        const edited = JSON.parse(document.getElementById('configEditor').value);
+        await saveConfig(edited); cfg = edited;
+        // update UI
+        if (cfg.banner) {
+          const img = document.getElementById('bannerImage'); img.src = cfg.banner; img.style.display = 'block';
+          document.getElementById('studioName').textContent = cfg.producerName;
+        }
+        populateTiers(); renderOrders(await loadOrders()); renderNotification('Config saved');
+      } catch (e) { alert('Invalid JSON'); }
+    }
 
     async function initWidget() {
       document.getElementById('widget').style.display = 'block';
-      document.getElementById('notification');
-      // Banner and producer name if needed
-      populateTiers();
-      renderOrders(await loadOrders());
-    }
-
-    // DOM references & setup flow
-    const setupDiv = document.getElementById('setup');
-    let cfg;
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      cfg = await loadConfig();
-      if (!cfg.producerName) {
-        setupDiv.style.display = 'block';
-      } else {
-        initWidget();
+      // display banner and name
+      if (cfg.banner) {
+        const img = document.getElementById('bannerImage'); img.src = cfg.banner; img.style.display = 'block';
       }
-      document.getElementById('saveSetup').onclick = async () => {
-        cfg.banner = document.getElementById('bannerURL').value;
-        cfg.producerName = document.getElementById('producerName').value || defaultConfig.producerName;
-        await saveConfig(cfg);
-        location.reload();
-      };
-    });
+      document.getElementById('studioName').textContent = cfg.producerName;
+      populateTiers(); renderOrders(await loadOrders());
+    }
 
     // PDF generator
     function generatePDF(id) {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF(); let y = 20;
-      doc.setFontSize(16);
-      doc.text(cfg.tiers.find(t => t.id === id).name + ' Agreement', 20, y); y += 10;
-      doc.setFontSize(11);
-      const text = cfg.agreements[id].replace(/{{producer}}/g, cfg.producerName);
-      const lines = doc.splitTextToSize(text, 170);
-      lines.forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 20, y); y += 7; });
-      doc.save(id + '-agreement.pdf');
+      const { jsPDF } = window.jspdf; const doc = new jsPDF(); let y=20;
+      const tier = cfg.tiers.find(t=>t.id===id);
+      doc.setFontSize(16); doc.text(tier.name + ' Agreement', 20, y); y+=10;
+      doc.setFontSize(12);
+      const lines = doc.splitTextToSize(cfg.agreements[id], 170);
+      lines.forEach(line => { if (y>280) { doc.addPage(); y=20;} doc.text(line,20,y); y+=7; });
+      doc.save(`${id}-agreement.pdf`);
     }
+
+    // Setup logic
+    let cfg;
+    document.addEventListener('DOMContentLoaded', async () => {
+      cfg = await loadConfig();
+      if (!cfg.banner) {
+        document.getElementById('setup').style.display = 'block';
+        document.getElementById('bannerURL').value = cfg.banner;
+        document.getElementById('producerName').value = cfg.producerName;
+      } else {
+        await initWidget();
+      }
+      document.getElementById('saveSetup').onclick = async () => {
+        cfg.banner = document.getElementById('bannerURL').value.trim();
+        cfg.producerName = document.getElementById('producerName').value.trim() || defaultConfig.producerName;
+        await saveConfig(cfg); document.getElementById('setup').style.display='none'; await initWidget();
+      };
+      document.getElementById('adminLoginBtn').onclick = () => {
+        const pw = document.getElementById('adminPasswordInput').value;
+        if (pw === cfg.adminPassword) showAdminPanel(); else alert('Wrong password');
+      };
+      document.getElementById('saveConfigBtn').onclick = saveEditedConfig;
+    });
   </script>
 </head>
 <body>
   <div class="container" id="setup" style="display:none;">
     <img src="https://static.wixstatic.com/media/afbb39_617140a20fbb47b2b858c0d3ef28a4ef~mv2.png" alt="Logo" style="max-width:120px; display:block; margin:0 auto 10px;" />
     <h1>Checkmark Beat Leasing Setup</h1>
-    <label>Banner URL:<input type="url" id="bannerURL" placeholder="https://..." /></label>
+    <label>Banner URL:<input type="url" id="bannerURL" placeholder="https://example.com/banner.jpg" /></label>
     <label>Producer Name:<input type="text" id="producerName" placeholder="Checkmark Audio" /></label>
     <button id="saveSetup">Save & Launch Widget</button>
   </div>
-
   <div class="container" id="widget" style="display:none;">
+    <img id="bannerImage" alt="Banner" />
+    <h1 id="studioName"></h1>
     <div id="notification"></div>
+    <!-- Admin Login -->
+    <div id="adminLogin">
+      <label>Admin Password:<input type="password" id="adminPasswordInput" placeholder="Password" /></label>
+      <button id="adminLoginBtn">Login as Admin</button>
+    </div>
+    <!-- Admin Panel -->
+    <div class="container" id="adminPanel" style="display:none;">
+      <h3>Admin Panel</h3>
+      <textarea id="configEditor"></textarea>
+      <button id="saveConfigBtn">Save Config</button>
+    </div>
     <h2>Select a Lease Tier</h2>
     <div class="tiers" id="tiersContainer"></div>
     <h2>Orders</h2>
     <ul id="ordersList"></ul>
-    <div id="adminPanel">
-      <h3>Admin Panel</h3>
-      <!-- Additional admin controls here -->
-    </div>
   </div>
 </body>
 </html>
